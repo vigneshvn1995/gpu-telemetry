@@ -1,0 +1,3 @@
+# Place DCGM CSV files here before running `docker build`.
+# This file ensures the data/ directory is tracked by git and present
+# in the Docker build context.

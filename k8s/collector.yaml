@@ -1,0 +1,113 @@
+# =============================================================================
+# Collector – subscribes to telemetry.gpu.* and writes to SQLite
+#
+# StatefulSet gives each pod a stable hostname (collector-0, collector-1)
+# and its own PersistentVolumeClaim via volumeClaimTemplates.
+#
+# ⚠  SQLite architecture trade-off
+# ─────────────────────────────────
+# Each Collector pod owns an independent SQLite database file on its PVC.
+# This avoids concurrent-writer locking issues but means the API can only
+# directly query one collector's data.  The api.yaml mounts the PVC of
+# collector-0 (collector-data-collector-0) as a read-only volume.
+#
+# In a production deployment replace SQLite with a distributed time-series
+# store (InfluxDB, VictoriaMetrics, Prometheus remote-write) so that all
+# Collectors write to a shared backend and the API has a unified view.
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: collector
+  namespace: gpu-telemetry
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/part-of: gpu-telemetry
+    app.kubernetes.io/component: storage
+spec:
+  serviceName: collector-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: collector
+        app.kubernetes.io/part-of: gpu-telemetry
+        app.kubernetes.io/component: storage
+    spec:
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: wait-for-broker
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z broker 7777; do
+                echo "waiting for broker:7777…"
+                sleep 2
+              done
+      containers:
+        - name: collector
+          image: gpu-telemetry:latest
+          imagePullPolicy: IfNotPresent
+          command: ["collector"]
+          env:
+            - name: MQ_ADDR
+              value: "broker:7777"
+            - name: COLLECTOR_TOPIC
+              value: "telemetry.gpu.*"
+            - name: COLLECTOR_DB
+              value: "/data/telemetry.db"
+            - name: COLLECTOR_BATCH_SIZE
+              value: "500"
+            - name: COLLECTOR_FLUSH_INT
+              value: "2s"
+            - name: LOG_LEVEL
+              value: "info"
+          volumeMounts:
+            - name: collector-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+  volumeClaimTemplates:
+    - metadata:
+        name: collector-data
+        labels:
+          app.kubernetes.io/name: collector
+          app.kubernetes.io/part-of: gpu-telemetry
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+---
+# Headless Service – gives each pod a stable DNS name:
+#   collector-0.collector-headless.gpu-telemetry.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-headless
+  namespace: gpu-telemetry
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/part-of: gpu-telemetry
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: collector
+  ports:
+    - name: placeholder
+      port: 1
+      targetPort: 1

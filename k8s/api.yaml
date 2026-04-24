@@ -1,0 +1,119 @@
+# =============================================================================
+# API – REST gateway serving the telemetry and GreenOps endpoints
+#
+# The API reads from the SQLite database written by collector-0.
+# It mounts the PVC created by the Collector StatefulSet for pod 0
+# (collector-data-collector-0) as a read-only volume.
+#
+# ⚠  Scheduling constraint
+# ─────────────────────────
+# ReadWriteOnce PVCs can only be attached to a single node.  The podAffinity
+# rule below requests (but does not require) the API pod to land on the same
+# node as collector-0 so that the volume can mount successfully on most
+# standard StorageClasses.  If your cluster uses a ReadWriteMany-capable
+# StorageClass (NFS, CephFS, etc.) you can remove the affinity block.
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: gpu-telemetry
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: gpu-telemetry
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api
+        app.kubernetes.io/part-of: gpu-telemetry
+        app.kubernetes.io/component: api
+    spec:
+      terminationGracePeriodSeconds: 15
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: collector
+                    statefulset.kubernetes.io/pod-name: collector-0
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: api
+          image: gpu-telemetry:latest
+          imagePullPolicy: IfNotPresent
+          command: ["api"]
+          env:
+            - name: API_ADDR
+              value: ":8080"
+            - name: API_DB
+              value: "/data/telemetry.db"
+            - name: API_READ_TIMEOUT
+              value: "15s"
+            - name: LOG_LEVEL
+              value: "info"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          volumeMounts:
+            - name: collector-data
+              mountPath: /data
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+      volumes:
+        - name: collector-data
+          persistentVolumeClaim:
+            # Mounts the PVC that the StatefulSet created for collector-0.
+            claimName: collector-data-collector-0
+            readOnly: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: gpu-telemetry
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: gpu-telemetry
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    app.kubernetes.io/name: api
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

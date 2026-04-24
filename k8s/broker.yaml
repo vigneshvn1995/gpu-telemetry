@@ -1,0 +1,97 @@
+# =============================================================================
+# Broker – custom TCP message-queue server
+#
+# Single replica: the in-memory MemoryBroker does not support multi-instance
+# clustering.  For HA, replace with a distributed MQ (NATS, Kafka, RabbitMQ).
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broker
+  namespace: gpu-telemetry
+  labels:
+    app.kubernetes.io/name: broker
+    app.kubernetes.io/part-of: gpu-telemetry
+    app.kubernetes.io/component: message-broker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: broker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: broker
+        app.kubernetes.io/part-of: gpu-telemetry
+        app.kubernetes.io/component: message-broker
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: broker
+          image: gpu-telemetry:latest
+          imagePullPolicy: IfNotPresent
+          command: ["broker"]
+          env:
+            - name: MQ_ADDR
+              value: ":7777"
+            - name: MQ_ADMIN_ADDR
+              value: ":7778"
+            - name: MQ_BUF_SIZE
+              value: "512"
+            - name: LOG_LEVEL
+              value: "info"
+          ports:
+            - name: mq-tcp
+              containerPort: 7777
+              protocol: TCP
+            - name: admin-http
+              containerPort: 7778
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: admin-http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: admin-http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: broker
+  namespace: gpu-telemetry
+  labels:
+    app.kubernetes.io/name: broker
+    app.kubernetes.io/part-of: gpu-telemetry
+    app.kubernetes.io/component: message-broker
+spec:
+  selector:
+    app.kubernetes.io/name: broker
+  type: ClusterIP
+  ports:
+    - name: mq-tcp
+      port: 7777
+      targetPort: mq-tcp
+      protocol: TCP
+    - name: admin-http
+      port: 7778
+      targetPort: admin-http
+      protocol: TCP

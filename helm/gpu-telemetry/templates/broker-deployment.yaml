@@ -1,0 +1,62 @@
+# =============================================================================
+# Broker – custom TCP message-queue server
+#
+# Single replica: the in-memory MemoryBroker does not support multi-instance
+# clustering.  For HA, replace with a distributed MQ (NATS, Kafka, RabbitMQ).
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broker
+  namespace: {{ include "gpu-telemetry.namespace" . }}
+  labels:
+    {{- include "gpu-telemetry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: message-broker
+spec:
+  replicas: {{ .Values.broker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gpu-telemetry.selectorLabels" (dict "component" "broker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gpu-telemetry.selectorLabels" (dict "component" "broker") | nindent 8 }}
+        app.kubernetes.io/component: message-broker
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: broker
+          image: {{ include "gpu-telemetry.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["broker"]
+          env:
+            {{- range $key, $val := .Values.broker.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          ports:
+            - name: mq-tcp
+              containerPort: {{ .Values.broker.service.mqPort }}
+              protocol: TCP
+            - name: admin-http
+              containerPort: {{ .Values.broker.service.adminPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: admin-http
+            initialDelaySeconds: {{ .Values.broker.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.broker.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.broker.livenessProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: admin-http
+            initialDelaySeconds: {{ .Values.broker.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.broker.readinessProbe.periodSeconds }}
+          resources:
+            {{- toYaml .Values.broker.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true

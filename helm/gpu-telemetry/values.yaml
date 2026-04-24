@@ -1,0 +1,128 @@
+# =============================================================================
+# gpu-telemetry Helm chart – default values
+# Override any value on the command line:
+#   helm install gpu-telemetry ./helm/gpu-telemetry \
+#     --set image.tag=v1.2.3 \
+#     --set collector.replicaCount=3
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Global
+# ---------------------------------------------------------------------------
+global:
+  # Namespace to deploy all resources into.
+  namespace: gpu-telemetry
+
+# ---------------------------------------------------------------------------
+# Container image (shared across all four services)
+# ---------------------------------------------------------------------------
+image:
+  repository: gpu-telemetry
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# ---------------------------------------------------------------------------
+# Broker
+# ---------------------------------------------------------------------------
+broker:
+  replicaCount: 1
+  service:
+    mqPort: 7777
+    adminPort: 7778
+  env:
+    MQ_ADDR: ":7777"
+    MQ_ADMIN_ADDR: ":7778"
+    MQ_BUF_SIZE: "512"
+    LOG_LEVEL: "info"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+  livenessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 15
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 3
+    periodSeconds: 10
+
+# ---------------------------------------------------------------------------
+# Streamer
+# ---------------------------------------------------------------------------
+streamer:
+  # Scale up to add more ingest agents; each pod streams the same CSV
+  # independently to simulate multiple data-source nodes.
+  replicaCount: 2
+  env:
+    MQ_ADDR: "broker:7777"
+    # Path inside the container image where the CSV is baked in.
+    STREAMER_CSV: "/app/data/sample_metrics.csv"
+    STREAMER_LOOP: "true"
+    STREAMER_DELAY: "50ms"
+    STREAMER_TOPIC_PFX: "telemetry.gpu"
+    LOG_LEVEL: "info"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "32Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+# ---------------------------------------------------------------------------
+# Collector
+# ---------------------------------------------------------------------------
+collector:
+  # Scale up/down; each pod gets its own PVC via volumeClaimTemplates.
+  replicaCount: 2
+  env:
+    MQ_ADDR: "broker:7777"
+    COLLECTOR_TOPIC: "telemetry.gpu.*"
+    COLLECTOR_DB: "/data/telemetry.db"
+    COLLECTOR_BATCH_SIZE: "500"
+    COLLECTOR_FLUSH_INT: "2s"
+    LOG_LEVEL: "info"
+  persistence:
+    size: 5Gi
+    storageClass: ""       # leave empty to use the cluster default
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# ---------------------------------------------------------------------------
+# API
+# ---------------------------------------------------------------------------
+api:
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 8080
+  env:
+    API_ADDR: ":8080"
+    # Reads the SQLite file written by collector-0.
+    API_DB: "/data/telemetry.db"
+    API_READ_TIMEOUT: "15s"
+    LOG_LEVEL: "info"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+  livenessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 15
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 3
+    periodSeconds: 10

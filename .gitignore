@@ -1,0 +1,31 @@
+# Compiled binaries
+bin/
+*.exe
+*.exe~
+
+# Runtime artifacts
+telemetry.db
+*.db
+
+# Local process tracking (start-local scripts)
+.local-pids
+.local-pids.json
+
+# Test coverage
+coverage.out
+coverage.html
+coverage
+*.cov
+mq_cov
+mq_cov_funcs.txt
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go build cache (not usually tracked)
+vendor/

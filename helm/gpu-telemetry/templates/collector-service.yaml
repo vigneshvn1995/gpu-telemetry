@@ -1,0 +1,18 @@
+# Headless Service – gives each Collector pod a stable DNS name:
+#   collector-0.collector-headless.<namespace>.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-headless
+  namespace: {{ include "gpu-telemetry.namespace" . }}
+  labels:
+    {{- include "gpu-telemetry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  clusterIP: None
+  selector:
+    {{- include "gpu-telemetry.selectorLabels" (dict "component" "collector") | nindent 4 }}
+  ports:
+    - name: placeholder
+      port: 80
+      targetPort: 80

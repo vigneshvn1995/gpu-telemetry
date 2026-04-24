@@ -1,0 +1,55 @@
+# =============================================================================
+# Streamer – continuously publishes DCGM CSV rows to the broker
+#
+# Scale replicaCount up/down to change the number of ingest agents.
+# In production, each replica would point at a different physical host's
+# metrics endpoint via STREAMER_CSV or a mounted volume.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamer
+  namespace: {{ include "gpu-telemetry.namespace" . }}
+  labels:
+    {{- include "gpu-telemetry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+spec:
+  replicas: {{ .Values.streamer.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gpu-telemetry.selectorLabels" (dict "component" "streamer") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gpu-telemetry.selectorLabels" (dict "component" "streamer") | nindent 8 }}
+        app.kubernetes.io/component: ingest
+    spec:
+      terminationGracePeriodSeconds: 10
+      # Wait for the broker TCP port to be reachable before starting.
+      initContainers:
+        - name: wait-for-broker
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z broker {{ .Values.broker.service.mqPort }}; do
+                echo "waiting for broker:{{ .Values.broker.service.mqPort }}…"
+                sleep 2
+              done
+      containers:
+        - name: streamer
+          image: {{ include "gpu-telemetry.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["streamer"]
+          env:
+            {{- range $key, $val := .Values.streamer.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.streamer.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true

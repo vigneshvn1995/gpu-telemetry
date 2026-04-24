@@ -1,0 +1,482 @@
+basePath: /
+definitions:
+  main.anomalyEvent:
+    properties:
+      description:
+        type: string
+      detected_at:
+        type: string
+      drop_delta_pp:
+        description: magnitude of the drop in percentage points
+        type: number
+      drop_util_pct:
+        type: number
+      hostname:
+        type: string
+      kind:
+        description: e.g. "PerformanceDrop"
+        type: string
+      model_name:
+        type: string
+      peak_util_pct:
+        type: number
+      uuid:
+        type: string
+    type: object
+  main.brokerStatsResponse:
+    properties:
+      active_topics:
+        type: integer
+      drop_rate_pct:
+        description: TotalDropped / TotalPublished × 100
+        type: number
+      note:
+        type: string
+      total_delivered:
+        type: integer
+      total_dropped:
+        type: integer
+      total_published:
+        type: integer
+      total_subscribers:
+        type: integer
+    type: object
+  main.clusterAnomaliesResponse:
+    properties:
+      anomaly_count:
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/main.anomalyEvent'
+        type: array
+      since:
+        type: string
+      window:
+        type: string
+    type: object
+  main.energyResponse:
+    properties:
+      avg_power_w:
+        type: number
+      avg_utilisation_pct:
+        type: number
+      carbon_grams:
+        type: number
+      carbon_intensity:
+        type: string
+      duration_hours:
+        type: number
+      hostname:
+        type: string
+      model_name:
+        type: string
+      power_model_note:
+        type: string
+      sample_count:
+        type: integer
+      total_energy_wh:
+        type: number
+      uuid:
+        type: string
+      window_end:
+        type: string
+      window_start:
+        type: string
+    type: object
+  main.gpuListResponse:
+    properties:
+      count:
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/storage.GPUSummary'
+        type: array
+    type: object
+  main.problemDetail:
+    properties:
+      detail:
+        type: string
+      status:
+        type: integer
+      title:
+        type: string
+      type:
+        type: string
+    type: object
+  main.strandedComputeResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/main.strandedGPUItem'
+        type: array
+      max_util_pct:
+        type: number
+      since:
+        type: string
+      stranded_count:
+        type: integer
+      total_wasted_co2_g:
+        type: number
+      total_wasted_wh:
+        type: number
+      window:
+        type: string
+    type: object
+  main.strandedGPUItem:
+    properties:
+      gpu_id:
+        type: string
+      hostname:
+        type: string
+      idle_power_w:
+        type: number
+      model_name:
+        type: string
+      peak_util_pct:
+        description: highest utilisation seen in window
+        type: number
+      sample_count:
+        description: number of samples examined
+        type: integer
+      uuid:
+        type: string
+      wasted_co2_g:
+        type: number
+      wasted_energy_wh:
+        type: number
+    type: object
+  main.telemetryResponse:
+    properties:
+      count:
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/models.Telemetry'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+    type: object
+  main.telemetrySummaryResponse:
+    properties:
+      max:
+        type: number
+      mean:
+        type: number
+      metric_name:
+        type: string
+      min:
+        type: number
+      p50:
+        type: number
+      p90:
+        type: number
+      p99:
+        type: number
+      sample_count:
+        type: integer
+      uuid:
+        type: string
+      window_end:
+        type: string
+      window_start:
+        type: string
+    type: object
+  models.Telemetry:
+    properties:
+      container:
+        description: Kubernetes context (optional – empty when running bare-metal)
+        type: string
+      device:
+        type: string
+      gpu_id:
+        type: string
+      hostname:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        description: |-
+          Labels carries the full Prometheus label set parsed from the raw CSV
+          column.  Consumers that need driver version, job name, instance, etc.
+          can find them here without schema changes.
+        type: object
+      metric_name:
+        type: string
+      model_name:
+        type: string
+      namespace:
+        type: string
+      pod:
+        type: string
+      timestamp:
+        description: Core identity fields
+        type: string
+      uuid:
+        type: string
+      value:
+        description: The actual measured value.
+        type: number
+    type: object
+  storage.GPUSummary:
+    properties:
+      gpu_id:
+        type: string
+      hostname:
+        type: string
+      model_name:
+        type: string
+      uuid:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: GPU Telemetry
+  description: Real-time GPU metrics ingestion and GreenOps energy analytics.
+  title: GPU Telemetry API
+  version: 1.0.0
+paths:
+  /api/v1/broker/stats:
+    get:
+      description: Returns real-time message-queue statistics proxied from the broker
+        admin HTTP server.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.brokerStatsResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+      summary: Broker diagnostics
+      tags:
+      - broker
+  /api/v1/cluster/anomalies:
+    get:
+      description: Scans recent telemetry for rule-based failure signals such as sudden
+        performance drops.
+      parameters:
+      - description: Lookback duration (default 30m, e.g. 1h)
+        in: query
+        name: window
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.clusterAnomaliesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+      summary: Cluster anomaly detection
+      tags:
+      - cluster
+  /api/v1/cluster/stranded-compute:
+    get:
+      description: Returns GPUs with zero utilisation over the window that are wasting
+        idle power.
+      parameters:
+      - description: Lookback duration (default 15m, e.g. 30m, 1h)
+        in: query
+        name: window
+        type: string
+      - description: Max util % to classify as stranded (default 0)
+        in: query
+        name: max_util
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.strandedComputeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+      summary: Stranded compute (GreenOps)
+      tags:
+      - greenops
+  /api/v1/gpus:
+    get:
+      description: Returns one entry per unique GPU UUID observed in the telemetry
+        database.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.gpuListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+      summary: List GPUs
+      tags:
+      - gpus
+  /api/v1/gpus/{uuid}/energy:
+    get:
+      description: Computes energy consumption (Wh) and CO₂ estimate (g) for the given
+        GPU UUID.
+      parameters:
+      - description: GPU UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Start of time range (RFC3339)
+        in: query
+        name: start_time
+        type: string
+      - description: End of time range (RFC3339)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.energyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+      summary: GPU energy & carbon estimate (GreenOps)
+      tags:
+      - greenops
+  /api/v1/gpus/{uuid}/telemetry:
+    get:
+      description: Returns time-series telemetry records for the given GPU UUID.
+      parameters:
+      - description: GPU UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Filter by metric name (e.g. DCGM_FI_DEV_GPU_UTIL)
+        in: query
+        name: metric_name
+        type: string
+      - description: Start of time range (RFC3339)
+        in: query
+        name: start_time
+        type: string
+      - description: End of time range (RFC3339)
+        in: query
+        name: end_time
+        type: string
+      - description: Page size (default 100, max 10000)
+        in: query
+        name: limit
+        type: integer
+      - description: Page offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.telemetryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+      summary: Get GPU telemetry
+      tags:
+      - gpus
+  /api/v1/gpus/{uuid}/telemetry/summary:
+    get:
+      description: Returns P50/P90/P99 percentiles, mean, min, and max for a GPU metric
+        over a time window.
+      parameters:
+      - description: GPU UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Metric name (e.g. DCGM_FI_DEV_GPU_UTIL)
+        in: query
+        name: metric_name
+        required: true
+        type: string
+      - description: Start of window (RFC3339)
+        in: query
+        name: start_time
+        type: string
+      - description: End of window (RFC3339)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.telemetrySummaryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.problemDetail'
+      summary: Telemetry statistical summary
+      tags:
+      - gpus
+  /health:
+    get:
+      description: Returns 200 OK when the service is up.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness probe
+      tags:
+      - ops
+swagger: "2.0"

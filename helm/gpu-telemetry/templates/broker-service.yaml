@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: broker
+  namespace: {{ include "gpu-telemetry.namespace" . }}
+  labels:
+    {{- include "gpu-telemetry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: message-broker
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "gpu-telemetry.selectorLabels" (dict "component" "broker") | nindent 4 }}
+  ports:
+    - name: mq-tcp
+      port: {{ .Values.broker.service.mqPort }}
+      targetPort: mq-tcp
+      protocol: TCP
+    - name: admin-http
+      port: {{ .Values.broker.service.adminPort }}
+      targetPort: admin-http
+      protocol: TCP

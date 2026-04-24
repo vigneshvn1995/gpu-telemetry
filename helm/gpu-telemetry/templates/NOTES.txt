@@ -1,0 +1,67 @@
+Thank you for installing {{ .Chart.Name }} v{{ .Chart.Version }}!
+
+==============================================================================
+  GPU TELEMETRY PLATFORM
+==============================================================================
+
+Namespace : {{ include "gpu-telemetry.namespace" . }}
+Release   : {{ .Release.Name }}
+
+Components deployed:
+  • broker     – custom TCP message-queue (port {{ .Values.broker.service.mqPort }})
+  • streamer   – DCGM CSV ingest ({{ .Values.streamer.replicaCount }} replica(s))
+  • collector  – telemetry persistence ({{ .Values.collector.replicaCount }} pod(s), SQLite)
+  • api        – REST API (port {{ .Values.api.service.targetPort }})
+
+------------------------------------------------------------------------------
+  Wait for all pods to be Ready
+------------------------------------------------------------------------------
+
+  kubectl -n {{ include "gpu-telemetry.namespace" . }} get pods -w
+
+------------------------------------------------------------------------------
+  Access the REST API
+------------------------------------------------------------------------------
+
+{{- if eq .Values.api.service.type "LoadBalancer" }}
+  Get the external IP (may take a minute to provision):
+
+    kubectl -n {{ include "gpu-telemetry.namespace" . }} get svc api \
+      -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+  Then query:
+
+    curl http://<EXTERNAL_IP>/api/v1/gpus
+    curl http://<EXTERNAL_IP>/api/v1/gpus/<uuid>/telemetry
+    open http://<EXTERNAL_IP>/swagger/index.html
+{{- else if eq .Values.api.service.type "NodePort" }}
+  kubectl -n {{ include "gpu-telemetry.namespace" . }} get svc api
+{{- else }}
+  Port-forward to access locally:
+
+    kubectl -n {{ include "gpu-telemetry.namespace" . }} \
+      port-forward svc/api 8080:{{ .Values.api.service.port }}
+
+    curl http://localhost:8080/api/v1/gpus
+{{- end }}
+
+------------------------------------------------------------------------------
+  Broker admin stats
+------------------------------------------------------------------------------
+
+    kubectl -n {{ include "gpu-telemetry.namespace" . }} \
+      port-forward svc/broker {{ .Values.broker.service.adminPort }}:{{ .Values.broker.service.adminPort }}
+
+    curl http://localhost:{{ .Values.broker.service.adminPort }}/stats
+
+------------------------------------------------------------------------------
+  Scale streamer / collector
+------------------------------------------------------------------------------
+
+    # Add more streamers
+    helm upgrade {{ .Release.Name }} ./helm/gpu-telemetry --set streamer.replicaCount=5
+
+    # Add more collectors (each gets its own PVC)
+    helm upgrade {{ .Release.Name }} ./helm/gpu-telemetry --set collector.replicaCount=4
+
+    # Max supported by project design: 10 per tier

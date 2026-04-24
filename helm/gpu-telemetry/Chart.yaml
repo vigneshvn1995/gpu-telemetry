@@ -1,0 +1,18 @@
+apiVersion: v2
+name: gpu-telemetry
+description: >-
+  Elastic GPU Telemetry Pipeline – streams DCGM metrics through a custom TCP
+  message-queue broker, persists them to SQLite, and exposes a REST API with
+  GreenOps energy analytics.
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - gpu
+  - telemetry
+  - observability
+  - dcgm
+  - greenops
+home: https://github.com/your-org/gpu-telemetry
+maintainers:
+  - name: gpu-telemetry

@@ -1,0 +1,72 @@
+# =============================================================================
+# Collector – subscribes to telemetry.gpu.* and persists rows to SQLite
+#
+# StatefulSet gives each pod a stable hostname (collector-0, collector-1 …)
+# and its own PersistentVolumeClaim via volumeClaimTemplates.
+# Scale replicaCount up/down to change the number of collector pods.
+# =============================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: collector
+  namespace: {{ include "gpu-telemetry.namespace" . }}
+  labels:
+    {{- include "gpu-telemetry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  serviceName: collector-headless
+  replicas: {{ .Values.collector.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gpu-telemetry.selectorLabels" (dict "component" "collector") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gpu-telemetry.selectorLabels" (dict "component" "collector") | nindent 8 }}
+        app.kubernetes.io/component: storage
+    spec:
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: wait-for-broker
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z broker {{ .Values.broker.service.mqPort }}; do
+                echo "waiting for broker:{{ .Values.broker.service.mqPort }}…"
+                sleep 2
+              done
+      containers:
+        - name: collector
+          image: {{ include "gpu-telemetry.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["collector"]
+          env:
+            {{- range $key, $val := .Values.collector.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: collector-data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.collector.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+  volumeClaimTemplates:
+    - metadata:
+        name: collector-data
+        labels:
+          {{- include "gpu-telemetry.labels" . | nindent 10 }}
+          app.kubernetes.io/component: storage
+      spec:
+        accessModes:
+          - {{ .Values.collector.persistence.accessMode }}
+        {{- if .Values.collector.persistence.storageClass }}
+        storageClassName: {{ .Values.collector.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.collector.persistence.size }}
