@@ -1,18 +1,19 @@
 # gpu-telemetry – top-level Makefile
 #
 # Targets:
-#   build           Build all four binaries into ./bin/
-#   test            Run all unit and integration tests
-#   test-race       Run tests with -race detector enabled
-#   test-coverage   Run tests and generate an HTML coverage report
-#   lint            Run golangci-lint (requires golangci-lint in PATH)
-#   tidy            Tidy and verify the module graph
-#   docs            Regenerate OpenAPI spec with swag
-#   docker-build    Build the multi-service container image
-#   k8s-deploy      Apply all Kubernetes manifests in k8s/
-#   k8s-down        Delete all Kubernetes resources defined in k8s/
-#   run-broker      Start the broker server (foreground)
-#   run-streamer    Stream the sample CSV file to the broker
+#   build             Build all four binaries into ./bin/
+#   test              Run all unit tests
+#   test-integration  Run end-to-end integration tests (real broker + SQLite + API)
+#   test-race         Run tests with -race detector enabled
+#   test-coverage     Run tests and generate an HTML coverage report
+#   lint              Run golangci-lint (requires golangci-lint in PATH)
+#   tidy              Tidy and verify the module graph
+#   docs              Regenerate OpenAPI spec with swag
+#   docker-build      Build the multi-service container image
+#   k8s-deploy        Apply all Kubernetes manifests in k8s/
+#   k8s-down          Delete all Kubernetes resources defined in k8s/
+#   run-broker        Start the broker server (foreground)
+#   run-streamer      Stream the sample CSV file to the broker
 #   run-collector   Start the collector (writes to ./telemetry.db)
 #   run-api         Start the REST API (reads from ./telemetry.db)
 #   clean           Remove ./bin/ and generated artefacts
@@ -58,6 +59,10 @@ FORCE:
 .PHONY: test
 test:
 	$(GO) test ./... -v -count=1 -timeout 60s
+
+.PHONY: test-integration
+test-integration:
+	$(GO) test -tags integration ./cmd/api/ -v -run "^TestIntegration" -timeout 120s
 
 .PHONY: test-race
 test-race:

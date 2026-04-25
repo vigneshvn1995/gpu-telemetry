@@ -698,9 +698,32 @@ make clean            # remove bin/ and generated artefacts
 ### Test
 
 ```bash
-make test             # all unit and integration tests
-make test-race        # with -race detector enabled
+make test             # all unit tests (no external dependencies)
+make test-integration # end-to-end integration tests (real TCP broker + SQLite + API)
+make test-race        # unit tests with -race detector enabled
+make test-short       # fast subset — skips slow tests
 make test-coverage    # HTML coverage report → coverage.html
+```
+
+#### Integration tests
+
+The integration tests in [cmd/api/integration_test.go](cmd/api/integration_test.go) spin up real components (no mocks) and verify the full pipeline end-to-end. They are gated behind the `integration` build tag so they never run during a normal `make test`.
+
+| Test | What it covers |
+|------|---------------|
+| `TestIntegration_Health` | `/health` endpoint returns `{"status":"ok"}` |
+| `TestIntegration_BrokerToAPIViaMemoryStore` | Full pipeline: publisher → TCP broker → collector → MemoryStore → API; telemetry list, metric filter, time range, pagination, 400 error cases |
+| `TestIntegration_TelemetrySummary` | `/telemetry/summary` happy path + missing metric → 400, unknown UUID → 404 |
+| `TestIntegration_GPUEnergy` | Energy endpoint returns `energy_wh > 0`, `carbon_grams > 0`; unknown UUID → 404 |
+| `TestIntegration_BrokerStats` | Proxies fake broker admin `/stats`; broker down → 502 |
+| `TestIntegration_StrandedCompute` | Zero-util GPU classified as stranded; invalid window → 400 |
+| `TestIntegration_ClusterAnomalies` | Seeded spike→drop pattern triggers anomaly; empty store → 200 with 0 anomalies |
+| `TestIntegration_BrokerToAPIViaSQLite` | Collector writes via `OpenSQLite`; API reads via `OpenSQLiteReadOnly` — mirrors production pod split |
+| `TestIntegration_MultiGPUPagination` | 15 GPUs paginated with page size 6; verifies `total`, complete coverage, out-of-range offset, `limit > 1000 → 400` |
+
+Run integration tests directly:
+```bash
+go test -tags integration ./cmd/api/ -v -run Integration -timeout 120s
 ```
 
 ### Lint
