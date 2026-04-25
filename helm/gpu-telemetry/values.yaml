@@ -111,7 +111,7 @@ api:
     # Reads the SQLite file written by collector-0.
     API_DB: "/data/telemetry.db"
     API_READ_TIMEOUT: "15s"
-    LOG_LEVEL: "info"
+    LOG_LEVEL: "debug"
   resources:
     requests:
       cpu: "100m"
