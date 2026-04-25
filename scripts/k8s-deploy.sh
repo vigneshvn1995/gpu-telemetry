@@ -85,17 +85,19 @@ echo "[3/4] Applying manifests to namespace: $NAMESPACE"
 # first so that old pods are terminated before new ones are scheduled.
 # This avoids the "1 old replicas are pending termination" stall during rollout.
 if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
-  echo "  Namespace $NAMESPACE already exists — restarting existing workloads to clear old replicas..."
-  kubectl rollout restart deployment/broker     -n "$NAMESPACE" 2>/dev/null || true
-  kubectl rollout restart deployment/streamer   -n "$NAMESPACE" 2>/dev/null || true
-  kubectl rollout restart deployment/api        -n "$NAMESPACE" 2>/dev/null || true
-  kubectl rollout restart statefulset/collector -n "$NAMESPACE" 2>/dev/null || true
+  echo "  Namespace $NAMESPACE already exists — scaling down all workloads to force-clear stuck pods..."
+  # Scale to 0 first — this works even when pods are in CreateContainerConfigError,
+  # ImagePullBackOff, or Pending states where rollout restart has no effect.
+  kubectl scale deployment/broker   --replicas=0 -n "$NAMESPACE" 2>/dev/null || true
+  kubectl scale deployment/streamer --replicas=0 -n "$NAMESPACE" 2>/dev/null || true
+  kubectl scale deployment/api      --replicas=0 -n "$NAMESPACE" 2>/dev/null || true
+  kubectl scale statefulset/collector --replicas=0 -n "$NAMESPACE" 2>/dev/null || true
 
-  # Wait for old pods to terminate before applying updated manifests.
-  echo "  Waiting for old pods to terminate (up to 60s)..."
+  # Wait for all pods to be fully gone before re-applying.
+  echo "  Waiting for all pods to terminate (up to 90s)..."
   kubectl wait pods --for=delete \
     -l "app.kubernetes.io/part-of=gpu-telemetry" \
-    -n "$NAMESPACE" --timeout=60s 2>/dev/null || true
+    -n "$NAMESPACE" --timeout=90s 2>/dev/null || true
 fi
 
 kubectl apply -f "$ROOT/k8s/namespace.yaml"

@@ -41,8 +41,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" \
 # =============================================================================
 FROM alpine:3.20 AS runtime
 
-# Create a non-root user for least-privilege execution.
-RUN addgroup -S gpu && adduser -S gpu -G gpu
+# Create a non-root user with an explicit numeric UID (10001).
+# Kubernetes runAsNonRoot=true requires a numeric UID to verify non-root.
+RUN addgroup -S gpu && adduser -S -u 10001 -G gpu gpu
 
 WORKDIR /app
 
