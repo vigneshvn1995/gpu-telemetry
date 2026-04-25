@@ -353,19 +353,38 @@ Liveness probe. Returns HTTP 200 when the service is up. Used by Kubernetes live
 
 Returns all GPU UUIDs observed in the telemetry database along with their latest metadata (model, hostname, device name). Use this endpoint to discover available GPU identifiers before querying telemetry.
 
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit`  | int  | 100     | Page size (max 1 000) |
+| `offset` | int  | 0       | Page offset for pagination |
+
 **Response:**
 ```json
 {
-  "count": 64,
+  "total": 64,
+  "limit": 10,
+  "offset": 0,
+  "count": 10,
   "items": [
     {
       "uuid": "GPU-5fd4f087-86f3-7a43-b711-4771313afc50",
       "model_name": "NVIDIA A100 80GB PCIe",
       "hostname": "node-01",
-      "device": "nvidia0"
+      "gpu_id": "0"
     }
   ]
 }
+```
+
+**Pagination example:**
+```bash
+# First page (10 GPUs)
+curl "http://localhost:8080/api/v1/gpus?limit=10&offset=0" | jq .
+
+# Second page
+curl "http://localhost:8080/api/v1/gpus?limit=10&offset=10" | jq .
 ```
 
 ---

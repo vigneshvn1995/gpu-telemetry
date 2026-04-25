@@ -139,11 +139,31 @@ const docTemplate = `{
                     "gpus"
                 ],
                 "summary": "List GPUs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 100, max 1000)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/main.gpuListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.problemDetail"
                         }
                     },
                     "500": {
@@ -512,6 +532,15 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/storage.GPUSummary"
                     }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
