@@ -171,30 +171,38 @@ minikube image load gpu-telemetry:latest
 kind load docker-image gpu-telemetry:latest
 ```
 
-**Remote cluster — push to a registry:**
-```bash
-docker tag gpu-telemetry:latest <registry>/<repo>/gpu-telemetry:latest
-docker push <registry>/<repo>/gpu-telemetry:latest
-
-# Update the image field in every manifest:
-sed -i 's|image: gpu-telemetry:latest|image: <registry>/<repo>/gpu-telemetry:latest|g' k8s/*.yaml
-```
+**Remote cluster (Artifactory / any registry)** — no manual steps needed. The deploy script handles tagging, pushing, and updating image references in all manifests automatically when `REGISTRY` is set (see Step 3).
 
 ### Step 3 — Deploy
 
-Use the provided deployment script (handles image loading, manifest apply, and rollout wait):
+Use the provided deployment script. It handles everything: build, image load/push, manifest image-reference update, namespace creation, apply, and rollout wait.
+
+> **Note:** `REGISTRY` must be the registry **prefix only** — do not include the image name or tag. The script appends `/gpu-telemetry:<IMAGE_TAG>` automatically.
+
 ```bash
 chmod +x scripts/k8s-deploy.sh
+
+# Docker Desktop (local cluster)
 ./scripts/k8s-deploy.sh
 
-# minikube:
+# minikube
 CLUSTER_TYPE=minikube ./scripts/k8s-deploy.sh
 
-# Remote registry:
+# Remote registry (e.g. Artifactory) — builds, pushes, updates k8s/*.yaml, and deploys in one command
+REGISTRY=myregistry.io/myteam ./scripts/k8s-deploy.sh
+
+# Remote registry with a specific image tag
 REGISTRY=myregistry.io/myteam IMAGE_TAG=v1.0.0 ./scripts/k8s-deploy.sh
 ```
 
-Or apply manifests manually in the required order:
+When `REGISTRY` is set the script automatically:
+1. Builds the image tagged as `$REGISTRY/gpu-telemetry:$IMAGE_TAG`
+2. Pushes it to the registry
+3. Updates the `image:` field in every `k8s/*.yaml` to the full registry path
+4. Scales down any existing pods (including stuck ones) and waits for them to terminate
+5. Applies all manifests and waits for rollout to complete
+
+Or apply manifests manually in the required order (only for local clusters where the image is already available):
 ```bash
 kubectl apply -f k8s/namespace.yaml   # 1. Create namespace gpu-telemetry
 kubectl apply -f k8s/broker.yaml      # 2. Broker Deployment + Service
