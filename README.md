@@ -496,11 +496,18 @@ CO₂ (g)     = Energy_kWh × 400 g/kWh
 ```json
 {
   "uuid": "GPU-5fd4f087-...",
-  "energy_wh": 312.4,
-  "co2_grams": 124.96,
-  "sample_count": 720,
+  "model_name": "NVIDIA A100 80GB PCIe",
+  "hostname": "node-01",
   "window_start": "2025-07-18T20:00:00Z",
-  "window_end": "2025-07-18T21:00:00Z"
+  "window_end": "2025-07-18T21:00:00Z",
+  "duration_hours": 1.0,
+  "sample_count": 720,
+  "avg_utilisation_pct": 72.4,
+  "avg_power_w": 267.2,
+  "total_energy_wh": 267.2,
+  "carbon_grams": 106.88,
+  "power_model_note": "Power(W) = 50 + (util/100 × 300)",
+  "carbon_intensity": "400 g CO₂/kWh"
 }
 ```
 
@@ -518,11 +525,11 @@ Proxies the broker admin `/stats` endpoint and returns real-time message-queue d
 **Response:**
 ```json
 {
-  "topics": 64,
-  "subscribers": 2,
   "total_published": 2470,
   "total_delivered": 2470,
   "total_dropped": 0,
+  "active_topics": 64,
+  "total_subscribers": 2,
   "drop_rate_pct": 0.0,
   "note": "counters are cumulative since broker start; diff between polls for per-second rates"
 }
@@ -591,10 +598,14 @@ Scans recent utilisation telemetry across all GPUs using rule-based detection to
   "items": [
     {
       "uuid": "GPU-def...",
+      "model_name": "NVIDIA A100 80GB PCIe",
       "hostname": "node-01",
-      "type": "PerformanceDrop",
-      "detail": "utilisation dropped from 97.0% to 12.0% within 5 samples",
-      "detected_at": "2025-07-18T20:47:12Z"
+      "kind": "PerformanceDrop",
+      "detected_at": "2025-07-18T20:47:12Z",
+      "peak_util_pct": 97.0,
+      "drop_util_pct": 12.0,
+      "drop_delta_pp": 85.0,
+      "description": "GPU utilisation dropped 85.0 pp (97.0% → 12.0%) within 5s of a >95% spike; possible thermal throttle, driver fault, or workload preemption."
     }
   ]
 }
