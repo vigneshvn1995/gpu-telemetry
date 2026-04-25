@@ -80,6 +80,24 @@ fi
 
 # ---- Step 3: Deploy ---------------------------------------------------------
 echo "[3/4] Applying manifests to namespace: $NAMESPACE"
+
+# If the namespace already exists, restart existing deployments/statefulsets
+# first so that old pods are terminated before new ones are scheduled.
+# This avoids the "1 old replicas are pending termination" stall during rollout.
+if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+  echo "  Namespace $NAMESPACE already exists — restarting existing workloads to clear old replicas..."
+  kubectl rollout restart deployment/broker     -n "$NAMESPACE" 2>/dev/null || true
+  kubectl rollout restart deployment/streamer   -n "$NAMESPACE" 2>/dev/null || true
+  kubectl rollout restart deployment/api        -n "$NAMESPACE" 2>/dev/null || true
+  kubectl rollout restart statefulset/collector -n "$NAMESPACE" 2>/dev/null || true
+
+  # Wait for old pods to terminate before applying updated manifests.
+  echo "  Waiting for old pods to terminate (up to 60s)..."
+  kubectl wait pods --for=delete \
+    -l "app.kubernetes.io/part-of=gpu-telemetry" \
+    -n "$NAMESPACE" --timeout=60s 2>/dev/null || true
+fi
+
 kubectl apply -f "$ROOT/k8s/namespace.yaml"
 kubectl apply -f "$ROOT/k8s/broker.yaml"
 kubectl apply -f "$ROOT/k8s/collector.yaml"
@@ -88,11 +106,11 @@ kubectl apply -f "$ROOT/k8s/api.yaml"
 echo "  Manifests applied."
 
 # ---- Step 4: Wait -----------------------------------------------------------
-echo "[4/4] Waiting for rollout to complete (timeout 120s)..."
-kubectl rollout status deployment/broker     -n "$NAMESPACE" --timeout=120s
-kubectl rollout status statefulset/collector -n "$NAMESPACE" --timeout=120s
-kubectl rollout status deployment/streamer   -n "$NAMESPACE" --timeout=120s
-kubectl rollout status deployment/api        -n "$NAMESPACE" --timeout=120s
+echo "[4/4] Waiting for rollout to complete (timeout 180s)..."
+kubectl rollout status deployment/broker     -n "$NAMESPACE" --timeout=180s
+kubectl rollout status statefulset/collector -n "$NAMESPACE" --timeout=180s
+kubectl rollout status deployment/streamer   -n "$NAMESPACE" --timeout=180s
+kubectl rollout status deployment/api        -n "$NAMESPACE" --timeout=180s
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
