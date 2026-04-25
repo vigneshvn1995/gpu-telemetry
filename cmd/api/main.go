@@ -203,22 +203,51 @@ func (h *handler) handleHealth(c *gin.Context) {
 // @Description Returns one entry per unique GPU UUID observed in the telemetry database.
 // @Tags        gpus
 // @Produce     json
+// @Param       limit  query int false "Page size (default 100, max 1000)"
+// @Param       offset query int false "Page offset (default 0)"
 // @Success     200 {object} gpuListResponse
+// @Failure     400 {object} problemDetail
 // @Failure     500 {object} problemDetail
 // @Router      /api/v1/gpus [get]
 func (h *handler) handleGetGPUs(c *gin.Context) {
-	gpus, err := h.store.QueryGPUSummaries(c.Request.Context())
+	limit := parseIntParam(c.Query("limit"), 100)
+	offset := parseIntParam(c.Query("offset"), 0)
+	if limit > 1000 {
+		writeProblem(c, http.StatusBadRequest, "invalid_param", "limit max is 1000")
+		return
+	}
+	if offset < 0 {
+		writeProblem(c, http.StatusBadRequest, "invalid_param", "offset must be >= 0")
+		return
+	}
+
+	all, err := h.store.QueryGPUSummaries(c.Request.Context())
 	if err != nil {
 		h.internalError(c, "query_gpus", err)
 		return
 	}
-	if gpus == nil {
-		gpus = []storage.GPUSummary{}
+	if all == nil {
+		all = []storage.GPUSummary{}
 	}
-	h.logger.Debug("gpus listed", "count", len(gpus))
+
+	total := len(all)
+	// Apply offset/limit slice.
+	if offset >= total {
+		all = []storage.GPUSummary{}
+	} else {
+		all = all[offset:]
+		if limit > 0 && len(all) > limit {
+			all = all[:limit]
+		}
+	}
+
+	h.logger.Debug("gpus listed", "total", total, "offset", offset, "limit", limit, "count", len(all))
 	c.JSON(http.StatusOK, gpuListResponse{
-		Count: len(gpus),
-		Items: gpus,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+		Count:  len(all),
+		Items:  all,
 	})
 }
 
@@ -745,8 +774,11 @@ func computeEnergy(rows []*models.Telemetry) energyResponse {
 // -------------------------------------------------------------------------
 
 type gpuListResponse struct {
-	Count int                  `json:"count"`
-	Items []storage.GPUSummary `json:"items"`
+	Total  int                  `json:"total"`
+	Limit  int                  `json:"limit"`
+	Offset int                  `json:"offset"`
+	Count  int                  `json:"count"`
+	Items  []storage.GPUSummary `json:"items"`
 }
 
 type telemetryResponse struct {

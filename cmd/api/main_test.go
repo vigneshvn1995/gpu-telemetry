@@ -148,6 +148,69 @@ func TestHandleGetGPUs_WithData(t *testing.T) {
 	if body.Count != 2 {
 		t.Errorf("count = %d, want 2", body.Count)
 	}
+	if body.Total != 2 {
+		t.Errorf("total = %d, want 2", body.Total)
+	}
+}
+
+func TestHandleGetGPUs_Pagination(t *testing.T) {
+	t.Parallel()
+	ts, store := buildAPI(t, "")
+
+	// Seed 3 GPUs.
+	seedTelemetry(t, store, []*models.Telemetry{
+		newTel("uuid-A", "0", "host-1", "util", 80, apiT0),
+		newTel("uuid-B", "1", "host-2", "util", 60, apiT0),
+		newTel("uuid-C", "2", "host-3", "util", 40, apiT0),
+	})
+
+	// First page: limit=2, offset=0.
+	resp := get(t, ts.URL+"/api/v1/gpus?limit=2&offset=0")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var page1 gpuListResponse
+	decodeJSON(t, resp, &page1)
+	if page1.Total != 3 {
+		t.Errorf("total = %d, want 3", page1.Total)
+	}
+	if page1.Count != 2 {
+		t.Errorf("count = %d, want 2", page1.Count)
+	}
+
+	// Second page: limit=2, offset=2.
+	resp2 := get(t, ts.URL+"/api/v1/gpus?limit=2&offset=2")
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp2.StatusCode)
+	}
+	var page2 gpuListResponse
+	decodeJSON(t, resp2, &page2)
+	if page2.Total != 3 {
+		t.Errorf("total = %d, want 3", page2.Total)
+	}
+	if page2.Count != 1 {
+		t.Errorf("count = %d, want 1", page2.Count)
+	}
+
+	// offset beyond total returns empty items.
+	resp3 := get(t, ts.URL+"/api/v1/gpus?offset=99")
+	if resp3.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp3.StatusCode)
+	}
+	var page3 gpuListResponse
+	decodeJSON(t, resp3, &page3)
+	if page3.Count != 0 {
+		t.Errorf("count = %d, want 0 for out-of-range offset", page3.Count)
+	}
+	if page3.Total != 3 {
+		t.Errorf("total = %d, want 3", page3.Total)
+	}
+
+	// limit > 1000 should return 400.
+	resp4 := get(t, ts.URL+"/api/v1/gpus?limit=9999")
+	if resp4.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 for limit > 1000", resp4.StatusCode)
+	}
 }
 
 // -------------------------------------------------------------------------
