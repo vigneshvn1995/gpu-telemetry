@@ -61,10 +61,7 @@ spec:
               port: admin-http
             initialDelaySeconds: 3
             periodSeconds: 10
-          resources:
-            limits:
-              cpu: "500m"
-              memory: "256Mi"
+          # resources omitted — zero requests so scheduler places pod on any node
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

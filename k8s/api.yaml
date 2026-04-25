@@ -81,10 +81,7 @@ spec:
             - name: collector-data
               mountPath: /data
               readOnly: true
-          resources:
-            limits:
-              cpu: "500m"
-              memory: "256Mi"
+          # resources omitted — zero requests so scheduler places pod on any node
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

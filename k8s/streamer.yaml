@@ -61,10 +61,7 @@ spec:
               value: "telemetry.gpu"
             - name: LOG_LEVEL
               value: "info"
-          resources:
-            limits:
-              cpu: "200m"
-              memory: "128Mi"
+          # resources omitted — zero requests so scheduler places pod on any node
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

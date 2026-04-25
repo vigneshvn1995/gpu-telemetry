@@ -71,10 +71,7 @@ spec:
           volumeMounts:
             - name: collector-data
               mountPath: /data
-          resources:
-            limits:
-              cpu: "500m"
-              memory: "256Mi"
+          # resources omitted — zero requests so scheduler places pod on any node
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
