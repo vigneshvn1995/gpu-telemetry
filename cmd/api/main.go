@@ -88,7 +88,7 @@ func main() {
 	readTimeout := getEnvDuration("API_READ_TIMEOUT", 15*time.Second)
 	brokerAdminAddr := getEnv("BROKER_ADMIN_ADDR", "localhost:7778")
 
-	store, err := storage.OpenSQLite(dbPath)
+	store, err := openDBWithRetry(dbPath, logger)
 	if err != nil {
 		logger.Error("failed to open database", "path", dbPath, "err", err)
 		os.Exit(1)
@@ -215,6 +215,7 @@ func (h *handler) handleGetGPUs(c *gin.Context) {
 	if gpus == nil {
 		gpus = []storage.GPUSummary{}
 	}
+	h.logger.Debug("gpus listed", "count", len(gpus))
 	c.JSON(http.StatusOK, gpuListResponse{
 		Count: len(gpus),
 		Items: gpus,
@@ -278,6 +279,7 @@ func (h *handler) handleGetGPUTelemetry(c *gin.Context) {
 	if rows == nil {
 		rows = []*models.Telemetry{}
 	}
+	h.logger.Debug("telemetry queried", "uuid", uuid, "metric", filter.MetricName, "count", len(rows), "limit", filter.Limit, "offset", filter.Offset)
 	c.JSON(http.StatusOK, telemetryResponse{
 		Count:  len(rows),
 		Limit:  filter.Limit,
@@ -857,14 +859,27 @@ func (h *handler) internalError(c *gin.Context, op string, err error) {
 func ginLogger(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
+		path := c.Request.URL.Path
+		query := c.Request.URL.RawQuery
 		c.Next()
-		logger.Info("http request",
+		fields := []any{
 			"method", c.Request.Method,
-			"path", c.Request.URL.Path,
+			"path", path,
 			"status", c.Writer.Status(),
 			"duration_ms", time.Since(start).Milliseconds(),
+			"bytes", c.Writer.Size(),
 			"remote", c.ClientIP(),
-		)
+			"user_agent", c.Request.UserAgent(),
+		}
+		if query != "" {
+			fields = append(fields, "query", query)
+		}
+		if len(c.Errors) > 0 {
+			fields = append(fields, "errors", c.Errors.String())
+			logger.Error("http request", fields...)
+		} else {
+			logger.Info("http request", fields...)
+		}
 	}
 }
 
@@ -954,4 +969,23 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 		}
 	}
 	return fallback
+}
+
+// openDBWithRetry opens the SQLite database in read-only mode, retrying every
+// 2 s for up to 60 s. This handles the race condition where the API pod starts
+// before the Collector has created the telemetry.db file.
+func openDBWithRetry(path string, logger *slog.Logger) (storage.Store, error) {
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		store, err := storage.OpenSQLiteReadOnly(path)
+		if err == nil {
+			logger.Info("database opened", "path", path)
+			return store, nil
+		}
+		if time.Now().After(deadline) {
+			return nil, err
+		}
+		logger.Info("waiting for database file", "path", path, "retry_in", "2s")
+		time.Sleep(2 * time.Second)
+	}
 }

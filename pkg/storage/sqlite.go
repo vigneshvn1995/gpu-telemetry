@@ -45,6 +45,21 @@ func OpenSQLite(path string) (*SQLiteStore, error) {
 	return s, nil
 }
 
+// OpenSQLiteReadOnly opens an existing SQLite database in read-only mode.
+// It does not run migrations or create any schema. Use this for consumers
+// (e.g. the API) that mount the database file on a read-only volume.
+func OpenSQLiteReadOnly(path string) (*SQLiteStore, error) {
+	dsn := path + "?mode=ro&_timeout=5000&_foreign_keys=on"
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("storage: open sqlite read-only %q: %w", path, err)
+	}
+	db.SetMaxOpenConns(4) // multiple readers are fine
+	db.SetMaxIdleConns(4)
+	db.SetConnMaxLifetime(0)
+	return &SQLiteStore{db: db}, nil
+}
+
 // migrate creates the schema if it does not already exist.
 func (s *SQLiteStore) migrate() error {
 	const ddl = `
