@@ -60,6 +60,8 @@ spec:
               value: "/data/telemetry.db"
             - name: API_READ_TIMEOUT
               value: "15s"
+            - name: BROKER_ADMIN_ADDR
+              value: "broker:7778"
             - name: LOG_LEVEL
               value: "info"
           ports:
