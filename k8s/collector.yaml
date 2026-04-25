@@ -38,6 +38,8 @@ spec:
         app.kubernetes.io/part-of: gpu-telemetry
         app.kubernetes.io/component: storage
     spec:
+      securityContext:
+        fsGroup: 10001
       terminationGracePeriodSeconds: 30
       initContainers:
         - name: wait-for-broker

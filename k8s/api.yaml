@@ -35,6 +35,8 @@ spec:
         app.kubernetes.io/part-of: gpu-telemetry
         app.kubernetes.io/component: api
     spec:
+      securityContext:
+        fsGroup: 10001
       terminationGracePeriodSeconds: 15
       affinity:
         podAffinity:
