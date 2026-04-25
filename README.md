@@ -237,7 +237,7 @@ api-xxx               1/1     Running   0
 
 ```bash
 # Forward the API service to your laptop
-kubectl port-forward -n gpu-telemetry svc/api 8080:8080
+kubectl port-forward -n gpu-telemetry svc/api 8080:80
 ```
 
 In a second terminal:
