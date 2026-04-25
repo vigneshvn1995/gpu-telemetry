@@ -178,6 +178,8 @@ kind load docker-image gpu-telemetry:latest
 Use the provided deployment script. It handles everything: build, image load/push, manifest image-reference update, namespace creation, apply, and rollout wait.
 
 > **Note:** `REGISTRY` must be the registry **prefix only** — do not include the image name or tag. The script appends `/gpu-telemetry:<IMAGE_TAG>` automatically.
+>
+> When `REGISTRY` is set and `IMAGE_TAG` is not specified, the script defaults to a **timestamp tag** (e.g. `20260425-163045`) to avoid overwriting an existing tag. Many registries (Artifactory, ECR with immutable tags) forbid overwriting a tag that already exists. Do **not** pass `IMAGE_TAG=latest` against such registries — use a versioned or timestamp tag instead.
 
 ```bash
 chmod +x scripts/k8s-deploy.sh
@@ -188,10 +190,11 @@ chmod +x scripts/k8s-deploy.sh
 # minikube
 CLUSTER_TYPE=minikube ./scripts/k8s-deploy.sh
 
-# Remote registry (e.g. Artifactory) — builds, pushes, updates k8s/*.yaml, and deploys in one command
+# Remote registry — auto-generates a timestamp tag (e.g. gpu-telemetry:20260425-163045)
+# Do NOT add IMAGE_TAG=latest if your registry has immutable tags enabled
 REGISTRY=myregistry.io/myteam ./scripts/k8s-deploy.sh
 
-# Remote registry with a specific image tag
+# Remote registry with an explicit versioned tag
 REGISTRY=myregistry.io/myteam IMAGE_TAG=v1.0.0 ./scripts/k8s-deploy.sh
 ```
 
