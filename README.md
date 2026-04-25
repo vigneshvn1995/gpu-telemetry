@@ -67,7 +67,7 @@ graph TD
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Go | 1.22+ | [go.dev/dl](https://go.dev/dl/) |
+| Go | 1.25+ | [go.dev/dl](https://go.dev/dl/) |
 | swag CLI | latest | Required once to generate the Swagger spec. Install with `go install github.com/swaggo/swag/cmd/swag@latest`. Ensure `$GOPATH/bin` is on your `PATH`. |
 
 A sample DCGM metrics CSV is included at `data/sample_metrics.csv`. The streamer uses this by default.
@@ -149,7 +149,7 @@ start http://localhost:8080/swagger/index.html  # Windows
 
 ### Step 1 — Build the Docker image
 
-The Dockerfile uses a multi-stage build (`golang:1.22-alpine` builder, `alpine:3.20` runtime). All four binaries and `data/sample_metrics.csv` are baked into a single ~15 MB image. No CGO or C toolchain is required.
+The Dockerfile uses a multi-stage build (`golang:1.25-alpine` builder, `alpine:3.20` runtime). All four binaries and `data/sample_metrics.csv` are baked into a single ~15 MB image. No CGO or C toolchain is required.
 
 ```bash
 docker build -t gpu-telemetry:latest .

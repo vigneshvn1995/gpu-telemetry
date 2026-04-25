@@ -9,7 +9,7 @@
 # the final binary run on any linux/amd64 or linux/arm64 host without
 # installing additional runtime libraries.
 # =============================================================================
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
 
