@@ -28,7 +28,7 @@ spec:
         - name: broker
           image: {{ include "gpu-telemetry.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["broker"]
+          args: ["broker"]
           env:
             {{- range $key, $val := .Values.broker.env }}
             - name: {{ $key }}

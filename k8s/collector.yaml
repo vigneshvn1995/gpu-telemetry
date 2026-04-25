@@ -54,7 +54,7 @@ spec:
         - name: collector
           image: gpu-telemetry:latest
           imagePullPolicy: IfNotPresent
-          command: ["collector"]
+          args: ["collector"]
           env:
             - name: MQ_ADDR
               value: "broker:7777"

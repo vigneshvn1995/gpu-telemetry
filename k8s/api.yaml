@@ -50,7 +50,7 @@ spec:
         - name: api
           image: gpu-telemetry:latest
           imagePullPolicy: IfNotPresent
-          command: ["api"]
+          args: ["api"]
           env:
             - name: API_ADDR
               value: ":8080"

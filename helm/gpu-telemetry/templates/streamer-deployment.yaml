@@ -41,7 +41,7 @@ spec:
         - name: streamer
           image: {{ include "gpu-telemetry.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["streamer"]
+          args: ["streamer"]
           env:
             {{- range $key, $val := .Values.streamer.env }}
             - name: {{ $key }}

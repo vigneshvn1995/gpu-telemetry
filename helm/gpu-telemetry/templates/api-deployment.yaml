@@ -40,7 +40,7 @@ spec:
         - name: api
           image: {{ include "gpu-telemetry.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["api"]
+          args: ["api"]
           env:
             {{- range $key, $val := .Values.api.env }}
             - name: {{ $key }}

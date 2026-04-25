@@ -31,7 +31,7 @@ spec:
         - name: broker
           image: gpu-telemetry:latest
           imagePullPolicy: IfNotPresent
-          command: ["broker"]
+          args: ["broker"]
           env:
             - name: MQ_ADDR
               value: ":7777"

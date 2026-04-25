@@ -47,7 +47,7 @@ spec:
         - name: streamer
           image: gpu-telemetry:latest
           imagePullPolicy: IfNotPresent
-          command: ["streamer"]
+          args: ["streamer"]
           env:
             - name: MQ_ADDR
               value: "broker:7777"
