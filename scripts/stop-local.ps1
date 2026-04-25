@@ -12,12 +12,12 @@ if (-not (Test-Path $PidFile)) {
 $pids = Get-Content $PidFile | ConvertFrom-Json
 
 foreach ($name in $pids.PSObject.Properties.Name) {
-  $pid = $pids.$name
+  $procId = $pids.$name
   try {
-    Stop-Process -Id $pid -Force -ErrorAction Stop
-    Write-Host "Stopped $name (pid $pid)"
+    Stop-Process -Id $procId -Force -ErrorAction Stop
+    Write-Host "Stopped $name (pid $procId)"
   } catch {
-    Write-Host "Process $name (pid $pid) was not running"
+    Write-Host "Process $name (pid $procId) was not running"
   }
 }
 

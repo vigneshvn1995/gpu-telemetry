@@ -61,8 +61,8 @@ Write-Host "[3/5] Stopping any existing gpu-telemetry processes..."
 
 # Always kill by process name first — catches processes started outside this script
 foreach ($svc in @('broker', 'collector', 'streamer', 'api')) {
-  $procs = Get-Process -Name $svc -ErrorAction SilentlyContinue
-  if ($procs) {
+  $procs = @(Get-Process -Name $svc -ErrorAction SilentlyContinue)
+  if ($procs.Count -gt 0) {
     $procs | Stop-Process -Force
     Write-Host "  killed $($procs.Count) $svc process(es)"
   }

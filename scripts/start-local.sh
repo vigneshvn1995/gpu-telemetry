@@ -78,6 +78,9 @@ MQ_ADDR=":7777" MQ_ADMIN_ADDR=":7778" LOG_LEVEL="$LOG_LEVEL" \
 echo "  Waiting for broker on :7777..."
 for i in $(seq 1 30); do
   if nc -z localhost 7777 2>/dev/null; then break; fi
+  if [[ $i -eq 30 ]]; then
+    echo "WARNING: broker did not open :7777 within 15 s — continuing anyway"
+  fi
   sleep 0.5
 done
 
@@ -96,6 +99,9 @@ API_ADDR=":8080" API_DB="$ROOT/telemetry.db" \
 echo "[5/5] Waiting for API on :8080..."
 for i in $(seq 1 30); do
   if curl -sf http://localhost:8080/health >/dev/null 2>&1; then break; fi
+  if [[ $i -eq 30 ]]; then
+    echo "WARNING: API did not respond on :8080 within 15 s — check logs above"
+  fi
   sleep 0.5
 done
 
