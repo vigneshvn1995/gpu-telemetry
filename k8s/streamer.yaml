@@ -19,7 +19,7 @@ metadata:
     app.kubernetes.io/part-of: gpu-telemetry
     app.kubernetes.io/component: ingest
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: streamer

@@ -27,7 +27,7 @@ metadata:
     app.kubernetes.io/component: storage
 spec:
   serviceName: collector-headless
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: collector
