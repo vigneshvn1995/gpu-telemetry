@@ -709,6 +709,140 @@ The generated files (`docs/docs.go`, `docs/swagger.json`, `docs/swagger.yaml`) a
 
 ---
 
+## 8. AI Assistance Documentation
+
+This section fulfils the project requirement to document how AI assistance was used throughout the development workflow.
+
+---
+
+### Overview
+
+GitHub Copilot (Claude Sonnet model via VS Code) was used heavily across all phases of this project — from initial scaffolding through to final deployment tooling. The table below summarises which parts were AI-accelerated vs manually driven.
+
+| Phase | AI contribution | Manual intervention required |
+|-------|----------------|------------------------------|
+| Project scaffolding | High — directory layout, `go.mod`, `Makefile` skeleton | Adjusted module path and binary names |
+| Custom MQ design | Medium — initial interface and broker struct | Rewrote glob-matching and frame-protocol logic for correctness |
+| Streamer implementation | High — CSV parsing, topic routing, loop/signal handling | Tuned column index constants to match actual CSV schema |
+| Collector implementation | High — subscribe loop, batch flush, SQLite writes | Fixed transaction rollback on partial batch failure |
+| API handlers | High — Gin route setup, Swagger annotations, pagination | Added RFC 7807 problem-detail error shape manually |
+| GreenOps engine | Medium — trapezoidal integration skeleton | Hand-tuned power model constants and CO₂ formula |
+| Unit tests | High — table-driven test structure, mock store | Added edge-case coverage for empty results and time filters |
+| Dockerfile | High — multi-stage build, non-root user | Verified pure-Go SQLite (`modernc.org/sqlite`) avoids CGO |
+| Kubernetes manifests | High — Deployment/StatefulSet/Service YAML | Fixed PVC affinity rules for `ReadWriteOnce` constraint |
+| Helm chart | High — `values.yaml` and template files | Aligned template variable names with values keys |
+| README | High — architecture diagram, API reference tables | Rewrote production-considerations section |
+
+---
+
+### Prompts Used
+
+#### 1 — Project bootstrapping
+
+> *"Design a Go project layout for an elastic GPU telemetry pipeline. It should have four binaries: broker, streamer, collector, api. Use a pkg/ layout with mq, models, and storage sub-packages. Generate the go.mod, top-level Makefile with build/test/coverage/docs targets, and a .gitignore."*
+
+**What worked:** The directory layout, `go.mod` module declaration, and Makefile target skeleton were produced correctly in one pass.
+
+**What fell short:** The initial `Makefile` used `&&` chaining which does not work cross-platform. Manually changed to `;` and added PowerShell equivalents in the start/stop scripts.
+
+---
+
+#### 2 — Custom message queue design
+
+> *"Design a custom TCP pub-sub message queue in Go. Requirements: length-prefixed JSON framing (4-byte big-endian uint32 + JSON payload), glob topic matching using path.Match, buffered subscriber channels with drop-on-full behaviour, admin HTTP endpoint for stats. Implement the Broker interface, MemoryBroker struct, BrokerServer, and Client."*
+
+**What worked:** The `Broker` interface, `MemoryBroker` struct, subscriber channel fan-out, and admin HTTP handler were solid on the first pass.
+
+**What fell short:** The initial `matchTopic` implementation used `strings.HasPrefix` which did not handle multi-segment globs correctly. Manually replaced with `path.Match`. The frame write path also had a race condition where two goroutines could write to the same `bufio.Writer`; fixed by introducing a dedicated `writeLoop` goroutine per connection.
+
+---
+
+#### 3 — Streamer implementation
+
+> *"Implement a Go binary that reads a DCGM CSV file row by row, constructs a Telemetry struct, serialises it to JSON, and publishes it to a topic telemetry.gpu.<gpu_id> via the custom MQ client. Support continuous looping on EOF and a configurable inter-message delay. Handle SIGINT/SIGTERM for clean shutdown."*
+
+**What worked:** File seek-on-EOF loop, signal handling with `context`, and structured logging were generated correctly.
+
+**What fell short:** The column index constants were generated with wrong assumptions about column order. Manually corrected after inspecting the actual `data/sample_metrics.csv` header row. The initial code also parsed timestamps from the CSV field instead of using `time.Now()` as required — fixed to use wall-clock time at point of processing.
+
+---
+
+#### 4 — Collector implementation
+
+> *"Implement a Go binary that subscribes to telemetry.gpu.* on the custom MQ, deserialises JSON messages into Telemetry structs, and batch-writes them to SQLite using a configurable batch size and flush interval. Use a StatefulSet-friendly design where each pod writes to its own database file."*
+
+**What worked:** The batch accumulation loop, ticker-based flush, and graceful drain on shutdown were generated correctly.
+
+**What fell short:** The SQLite write transaction did not roll back on partial failure. Manually added `defer tx.Rollback()` before `tx.Commit()`. Also added the `wait-for-broker` init container logic to the Kubernetes manifest manually after seeing collector pods crash-loop before the broker was ready.
+
+---
+
+#### 5 — REST API and Swagger annotations
+
+> *"Implement a Gin REST API in Go with these endpoints: GET /health, GET /api/v1/gpus, GET /api/v1/gpus/:uuid/telemetry (with start_time, end_time, metric_name, limit, offset query params), GET /api/v1/gpus/:uuid/energy. Add swaggo/swag annotations to all handlers. Use RFC 7807 problem+json for error responses."*
+
+**What worked:** The Gin route registration, Swagger `@Router`/`@Param`/`@Success` annotations, and pagination logic were well-formed on first generation.
+
+**What fell short:** The AI initially used `gin.H{}` for all errors, missing the RFC 7807 requirement. Manually introduced the `writeProblem` helper. The `podAffinity` block in `k8s/api.yaml` was also not generated — added manually after diagnosing the `ReadWriteOnce` PVC scheduling constraint.
+
+---
+
+#### 6 — GreenOps energy analytics
+
+> *"Add a GreenOps endpoint GET /api/v1/gpus/:uuid/energy that fetches GPU utilisation telemetry, models power as P(W) = 50 + (util/100) × 300, integrates energy over time using the trapezoidal rule, and estimates CO₂ at 400 g/kWh. Also add GET /api/v1/cluster/stranded-compute and GET /api/v1/cluster/anomalies endpoints."*
+
+**What worked:** The trapezoidal integration function, stranded-compute query, and anomaly detection loop structure were generated cleanly.
+
+**What fell short:** The initial `computeEnergy` function used rectangular (left-point) integration rather than trapezoidal, introducing systematic overestimation for declining utilisation curves. Manually corrected to average adjacent samples. The `anomalyLookAhead` constant was initially hardcoded as a magic number; refactored to a named constant.
+
+---
+
+#### 7 — Unit tests
+
+> *"Write comprehensive table-driven unit tests for: MemoryBroker publish/subscribe/unsubscribe, BrokerServer TCP integration, MQ client pub/sub, storage MemoryStore and SQLiteStore CRUD and filtering, API handlers for all endpoints using httptest, and Telemetry model parsing."*
+
+**What worked:** The table-driven test structure, `httptest.NewServer` setup, and `MemoryStore` seeding helpers were produced correctly and required minimal editing.
+
+**What fell short:** Several tests had data races when goroutines wrote to shared slices without synchronisation. Manually added `sync.Mutex` guards. The `TestBrokerServer_Integration` test initially had a fixed 100 ms sleep to wait for messages; replaced with a channel-based synchronisation to make tests deterministic.
+
+---
+
+#### 8 — Dockerfile and build environment
+
+> *"Write a multi-stage Dockerfile for a Go project with four binaries. Use golang:1.22-alpine as builder, alpine:3.20 as runtime. Run as a non-root user. All four binaries must be in the runtime image with a single entrypoint script that selects the binary based on the ROLE environment variable."*
+
+**What worked:** The multi-stage build, layer caching (`COPY go.mod go.sum` before source), and non-root user setup were correct on the first attempt.
+
+**What fell short:** The initial entrypoint used `exec $ROLE "$@"` which fails when `$ROLE` is unset. Manually added a guard with a clear error message. CGO was also initially not explicitly disabled; added `CGO_ENABLED=0` after confirming that `modernc.org/sqlite` is a pure-Go implementation.
+
+---
+
+#### 9 — Kubernetes manifests and Helm chart
+
+> *"Generate Kubernetes manifests for: a Namespace, a Broker Deployment + ClusterIP Service, a Collector StatefulSet with volumeClaimTemplates for SQLite persistence, a Streamer Deployment with initContainer waiting for broker, an API Deployment that mounts the collector-0 PVC read-only. Then convert to a Helm chart with a values.yaml covering replica counts, image tag, resource limits, and environment variables."*
+
+**What worked:** The StatefulSet `volumeClaimTemplates`, Helm `values.yaml` structure, and `_helpers.tpl` were generated with the correct indentation and reference patterns.
+
+**What fell short:** The API `podAffinity` stanza was missing from the generated manifest — added manually. The Helm template for the collector `headless` service used the wrong `clusterIP: None` placement; corrected manually. The `NOTES.txt` post-install message was generic; rewritten manually to include actual `kubectl port-forward` and `curl` commands.
+
+---
+
+### Where AI Saved the Most Time
+
+- **Boilerplate elimination:** ~80% of the Go source file structure (package declarations, imports, struct definitions, error handling patterns) was generated in the first pass, saving several hours of repetitive typing.
+- **Test scaffolding:** Table-driven tests across 8 test files were generated with correct structure, needing only data and edge-case adjustments.
+- **YAML verbosity:** All Kubernetes and Helm YAML (which is verbose and typo-prone) was generated correctly on the first attempt for 80% of fields.
+- **Swagger annotations:** All 15+ handler annotations were generated in one pass, correctly matching the `swaggo/swag` syntax.
+
+### Where Manual Work Was Essential
+
+- **Protocol correctness:** The MQ frame protocol, glob matching, and write-loop concurrency model required careful manual review and correction.
+- **Data contract alignment:** Matching CSV column indices to the actual data file required manual inspection — AI generated plausible but wrong column numbers.
+- **Kubernetes scheduling constraints:** The `ReadWriteOnce` PVC affinity problem is a Kubernetes operational concern that the AI did not anticipate without explicit prompting.
+- **Test determinism:** Replacing `time.Sleep` with channel synchronisation in integration tests was identified and fixed manually during `go test -race` runs.
+
+---
+
 ## License
 
 MIT
