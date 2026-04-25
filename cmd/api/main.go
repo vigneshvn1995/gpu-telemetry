@@ -909,6 +909,10 @@ func ginLogger(logger *slog.Logger) gin.HandlerFunc {
 		if len(c.Errors) > 0 {
 			fields = append(fields, "errors", c.Errors.String())
 			logger.Error("http request", fields...)
+		} else if path == "/health" {
+			// Liveness probes fire every few seconds; log at DEBUG to avoid flooding
+			// the log stream when LOG_LEVEL=info.
+			logger.Debug("http request", fields...)
 		} else {
 			logger.Info("http request", fields...)
 		}
