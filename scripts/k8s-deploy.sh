@@ -29,10 +29,20 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 IMAGE_NAME="gpu-telemetry"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
 REGISTRY="${REGISTRY:-}"
 CLUSTER_TYPE="${CLUSTER_TYPE:-}"
 NAMESPACE="gpu-telemetry"
+
+# When pushing to a remote registry, default to a timestamp tag to avoid
+# overwriting an immutable "latest" tag (common in Artifactory/ECR).
+# Override by setting IMAGE_TAG explicitly: IMAGE_TAG=v1.0.0 ./scripts/k8s-deploy.sh
+if [[ -z "${IMAGE_TAG:-}" ]]; then
+  if [[ -n "$REGISTRY" ]]; then
+    IMAGE_TAG="$(date +%Y%m%d-%H%M%S)"
+  else
+    IMAGE_TAG="latest"
+  fi
+fi
 
 FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
 if [[ -n "$REGISTRY" ]]; then
